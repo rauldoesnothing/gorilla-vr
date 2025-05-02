@@ -5,13 +5,29 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 
+import { Character } from './character.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Text } from 'troika-three-text';
 import { XR_BUTTONS } from 'gamepad-wrapper';
 import { gsap } from 'gsap';
 import { init } from './init.js';
+
+// Create physics world
+const world = new CANNON.World();
+world.gravity.set(0, -9.82, 0);
+
+// Create ground plane for physics
+const groundShape = new CANNON.Plane();
+const groundBody = new CANNON.Body({
+	mass: 0,
+	shape: groundShape,
+	material: new CANNON.Material({ friction: 0.1, restitution: 0.1 }),
+});
+groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+world.addBody(groundBody);
 
 const bullets = {};
 const forwardVector = new THREE.Vector3(0, 0, -1);
@@ -47,8 +63,11 @@ function updateScoreDisplay() {
 }
 
 function setupScene({ scene, camera, renderer, player, controllers }) {
-	scene.background = new THREE.Color(0x87CEEB);
+	scene.background = new THREE.Color(0x87ceeb);
 	const gltfLoader = new GLTFLoader();
+
+	// Create character
+	const character = new Character(world, scene, new THREE.Vector3(0, 0, -2));
 
 	gltfLoader.load('assets/football_court.glb', (gltf) => {
 		gltf.scene.position.y = 0;
@@ -111,7 +130,7 @@ function setupScene({ scene, camera, renderer, player, controllers }) {
 	camera.add(listener);
 
 	const audioLoader = new THREE.AudioLoader();
-	
+
 	// Right controller laser sound
 	laserSound = new THREE.PositionalAudio(listener);
 	audioLoader.load('assets/laser.ogg', (buffer) => {
@@ -138,6 +157,9 @@ function onFrame(
 	time,
 	{ scene, camera, renderer, player, controllers },
 ) {
+	// Update physics world
+	world.step(1 / 60);
+
 	// Handle right controller
 	if (controllers.right) {
 		const { gamepad, raySpace, mesh } = controllers.right;
